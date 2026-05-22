@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Forest Green",
+    "hex": "#4A7C59",
+    "rgb": [74, 124, 89],
+    "category": "LEAF"
+  },
+  {
+    "name": "Burnt Sienna",
+    "hex": "#C4552A",
+    "rgb": [196, 85, 42],
+    "category": "FABRIC"
+  }
+]
