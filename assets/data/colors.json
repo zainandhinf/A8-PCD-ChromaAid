@@ -1,0 +1,22 @@
+{
+  "color_palette": [
+    {
+      "hex": "#FF0000",
+      "name": "Merah",
+      "rgb": [255, 0, 0],
+      "context": "Sering ditemukan pada apel, strawberry, atau tanda stop."
+    },
+    {
+      "hex": "#00FF00",
+      "name": "Hijau",
+      "rgb": [0, 255, 0],
+      "context": "Identik dengan dedaunan, sayuran segar, atau rumput."
+    },
+    {
+      "hex": "#0000FF",
+      "name": "Biru",
+      "rgb": [0, 0, 255],
+      "context": "Sering merepresentasikan langit cerah atau air."
+    }
+  ]
+}
