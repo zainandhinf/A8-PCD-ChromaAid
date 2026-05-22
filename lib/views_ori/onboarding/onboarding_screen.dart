@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-// import '../scanner/scanner_screen.dart';
-import '../dashboard/dashboard_screen.dart';
+import '../scanner/scanner_screen.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -16,7 +15,7 @@ class OnboardingScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Spacer(),
-
+              // Simulasi grafis dari figma (Bisa diganti dengan aset gambar asli nanti)
               const Icon(
                 Icons.color_lens_outlined,
                 size: 100,
@@ -38,11 +37,11 @@ class OnboardingScreen extends StatelessWidget {
               const Text(
                 "Real-time color detection for\naccessibility and professional\nworkflows.",
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
+                style: TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
               ),
               const Spacer(),
 
+              // Tombol Start Scanning
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -55,10 +54,11 @@ class OnboardingScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
+                    // Navigasi ke Scanner
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const DashboardScreen(),
+                        builder: (context) => const ScannerScreen(),
                       ),
                     );
                   },
@@ -70,6 +70,7 @@ class OnboardingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
+              // Tombol Learn More
               SizedBox(
                 width: double.infinity,
                 height: 56,
