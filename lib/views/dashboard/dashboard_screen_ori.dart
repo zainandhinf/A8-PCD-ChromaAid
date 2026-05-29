@@ -1,9 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../models/color_scan_model.dart';
 import '../../services/scan_storage_service.dart';
 import '../scanner/scanner_screen.dart';
-import 'scan_detail_screen.dart';
 
 /// DashboardScreen: pusat data semua hasil scan ChromaAid.
 ///
@@ -426,7 +428,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           onDismissed: (_) => _deleteScan(scan),
           child: _ScanListItem(
             scan: scan,
-            onTap: () => _openDetail(scan),
+            onTap: () => _showDetailSheet(scan),
             onEditNote: () => _editNote(scan),
           ),
         );
@@ -451,7 +453,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       itemBuilder: (_, i) {
         final scan = _filtered[i];
         return GestureDetector(
-          onTap: () => _openDetail(scan),
+          onTap: () => _showDetailSheet(scan),
           child: _SwatchCell(scan: scan),
         );
       },
@@ -483,17 +485,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ── Detail Screen ─────────────────────────────────────────────────────────
+  // ── Detail Bottom Sheet ───────────────────────────────────────────────────
 
-  Future<void> _openDetail(ColorScanModel scan) async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ScanDetailScreen(scan: scan),
+  void _showDetailSheet(ColorScanModel scan) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ScanDetailSheet(
+        scan: scan,
+        onDelete: () {
+          Navigator.pop(context);
+          _deleteScan(scan);
+        },
+        onEditNote: () {
+          Navigator.pop(context);
+          _editNote(scan);
+        },
       ),
     );
-    // Refresh dashboard jika scan dihapus dari detail screen
-    if (mounted) _load();
   }
 
   // ── Confirm Delete ────────────────────────────────────────────────────────
@@ -788,6 +797,198 @@ class _SwatchCell extends StatelessWidget {
               color: scan.synced
                   ? Colors.greenAccent.withOpacity(0.8)
                   : Colors.orangeAccent.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Detail Bottom Sheet ───────────────────────────────────────────────────────
+
+class _ScanDetailSheet extends StatelessWidget {
+  final ColorScanModel scan;
+  final VoidCallback onDelete;
+  final VoidCallback onEditNote;
+
+  const _ScanDetailSheet({
+    required this.scan,
+    required this.onDelete,
+    required this.onEditNote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(scan.colorValue);
+    final dt = DateTime.tryParse(scan.capturedAt)?.toLocal();
+    final dateStr = dt != null
+        ? '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}'
+        : '-';
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Color hero
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    scan.hex.toUpperCase(),
+                    style: TextStyle(
+                      color: scan.isLight ? Colors.black87 : Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'RGB (${scan.r}, ${scan.g}, ${scan.b})',
+                    style: TextStyle(
+                      color: scan.isLight
+                          ? Colors.black54
+                          : Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Detail rows
+                _DetailRow(icon: Icons.folder_outlined,
+                    label: 'Sesi', value: scan.session),
+                _DetailRow(icon: Icons.access_time,
+                    label: 'Waktu', value: dateStr),
+                _DetailRow(
+                  icon: scan.synced
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_upload_outlined,
+                  label: 'Status',
+                  value: scan.synced ? 'Tersimpan di MongoDB' : 'Belum sync',
+                  valueColor:
+                      scan.synced ? Colors.greenAccent : Colors.orangeAccent,
+                ),
+                if (scan.note.isNotEmpty)
+                  _DetailRow(icon: Icons.notes,
+                      label: 'Catatan', value: scan.note),
+
+                const SizedBox(height: 16),
+
+                // Tombol copy hex
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: Text('Copy ${scan.hex.toUpperCase()}'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white24),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(
+                          ClipboardData(text: scan.hex.toUpperCase()));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Hex disalin ke clipboard'),
+                        behavior: SnackBarBehavior.floating,
+                      ));
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Edit Catatan'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white54,
+                          side: const BorderSide(color: Colors.white12),
+                        ),
+                        onPressed: onEditNote,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Hapus'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(
+                              color: Colors.redAccent, width: 0.5),
+                        ),
+                        onPressed: onDelete,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.white38),
+          const SizedBox(width: 10),
+          Text('$label: ',
+              style:
+                  const TextStyle(color: Colors.white38, fontSize: 13)),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
