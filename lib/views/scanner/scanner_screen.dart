@@ -7,7 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
 import '../../services/coordinate_service.dart';
-import '../../services/scan_storage_service.dart';
+import '../../services/color_storage_service.dart';
 import '../../models/hive_color_model.dart';
 import '../../utils/color_utils.dart';
 import '../history/color_history_screen.dart';
@@ -284,14 +284,18 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
-                      final scan = ColorScanModel.fromRgb(
+                      final scan = HiveColorModel(
+                        hex: result.hex,
                         r: result.r,
                         g: result.g,
                         b: result.b,
-                        note: noteController.text.trim(),
-                        session: selectedSession,
+                        nama: colorName,
+                        tags: [_detectedObject],
+                        catatan: noteController.text.trim(),
+                        sesiId: selectedSession,
+                        savedAt: DateTime.now(),
                       );
-                      await ScanStorageService.save(scan);
+                      await ColorStorageService().saveColor(scan);
 
                       setState(() => _activeSession = selectedSession);
                       if (ctx.mounted) Navigator.pop(ctx);
@@ -386,7 +390,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
         fit: StackFit.expand,
         children: [
           if (_isCameraInitialized) CameraPreview(_cameraController!) else const Center(child: CircularProgressIndicator(color: Colors.white)),
-          if (_isCameraInitialized) CustomPaint(size: Size.infinite, painter: ReticlePainter(center: reticleCenter)),
+          if (_isCameraInitialized) CustomPaint(size: Size.infinite, painter: ReticlePainter(focusPoint: reticleCenter)),
           if (_currentResult != null)
             Positioned(
               bottom: 120,

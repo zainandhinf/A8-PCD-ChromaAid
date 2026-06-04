@@ -165,7 +165,7 @@ class _ColorHistoryScreenState extends State<ColorHistoryScreen> {
           Expanded(
             flex: 3,
             child: Container(
-              color: Color(item.colorValue),
+              color: Color.fromRGBO(item.r, item.g, item.b, 1.0),
             ),
           ),
           Expanded(
@@ -177,23 +177,23 @@ class _ColorHistoryScreenState extends State<ColorHistoryScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    item.colorName ?? "Unknown", 
+                    item.nama, 
                     style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'HEX: ${item.hexColor}',
+                    'HEX: ${item.hex}',
                     style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        item.sessionName.isNotEmpty ? item.sessionName : "Nature",
+                        item.sesiId.isNotEmpty ? item.sesiId : "Nature",
                         style: GoogleFonts.spaceMono(color: Colors.white70, fontSize: 10),
                       ),
                       Text(
-                        DateFormat('MMM dd').format(item.timestamp),
+                        DateFormat('MMM dd').format(item.savedAt),
                         style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
                       ),
                     ],
