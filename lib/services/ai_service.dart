@@ -1,35 +1,79 @@
+import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class AiService {
   Interpreter? _interpreter;
-  bool isModelLoaded = false;
+  bool _isModelLoaded = false;
+
+  bool get isModelLoaded => _isModelLoaded;
+
+  final List<String> _clothingLabels = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+    "chair", "couch", "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
+    "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+  ];
 
   Future<void> initModel() async {
     try {
-      // Membaca model Edge AI yang ringan (YOLOv8 Nano)
       _interpreter = await Interpreter.fromAsset('assets/yolov8_nano.tflite');
-      isModelLoaded = true;
-      print("Edge AI: YOLOv8 Model berhasil dimuat ke dalam memori.");
-
-      // Mendapatkan informasi bentuk input/output tensor
-      var inputShape = _interpreter!.getInputTensor(0).shape;
-      print(
-        "AI Input Shape membutuhkan: $inputShape",
-      ); // Biasanya [1, 640, 640, 3]
+      _isModelLoaded = true;
     } catch (e) {
-      print("Edge AI Error: Gagal memuat model. $e");
+      print("Error loading TFLite Model: $e");
     }
   }
 
-  // Fungsi inferensi (Akan diisi penuh pada Sprint 3 bersama konversi koordinat)
-  List<dynamic> runObjectDetection(List<List<List<int>>> imageMatrix) {
-    if (!isModelLoaded || _interpreter == null) return [];
+  Future<String> runObjectDetection(CameraImage image) async {
+    if (!_isModelLoaded || _interpreter == null) return "AI Offline";
 
-    // Siapkan wadah output (Sesuai dengan output shape YOLOv8)
-    var outputBuffer = List.filled(1 * 84 * 8400, 0.0).reshape([1, 84, 8400]);
+    try {
+      var inputTensor = List.generate(1, (_) => List.generate(640, (_) => List.generate(640, (_) => List.filled(3, 0.0))));
+      final planeY = image.planes[0];
+      int scaleX = image.width ~/ 640;
+      int scaleY = image.height ~/ 640;
 
-    // _interpreter!.run(imageMatrix, outputBuffer); // Uncomment di Sprint 3
+      for (int y = 0; y < 640; y++) {
+        for (int x = 0; x < 640; x++) {
+          int srcX = (x * scaleX).clamp(0, image.width - 1);
+          int srcY = (y * scaleY).clamp(0, image.height - 1);
+          inputTensor[0][y][x][0] = planeY.bytes[srcY * planeY.bytesPerRow + srcX] / 255.0;
+          inputTensor[0][y][x][1] = inputTensor[0][y][x][0];
+          inputTensor[0][y][x][2] = inputTensor[0][y][x][0];
+        }
+      }
 
-    return outputBuffer;
+      var outputTensor = List.generate(1, (_) => List.generate(84, (_) => List.filled(8400, 0.0)));
+      _interpreter!.run(inputTensor, outputTensor);
+
+      double maxScore = 0.0;
+      int detectedClassId = -1;
+
+      for (int i = 0; i < 8400; i++) {
+        for (int classId = 0; classId < 80; classId++) {
+          double score = outputTensor[0][4 + classId][i];
+          if (score > maxScore) {
+            maxScore = score;
+            detectedClassId = classId;
+          }
+        }
+      }
+
+      if (detectedClassId != -1 && maxScore > 0.45) {
+        return _clothingLabels[detectedClassId].toUpperCase();
+      }
+      return "Pakaian / Kulit";
+    } catch (e) {
+      return "Scanning...";
+    }
+  }
+
+  void dispose() {
+    _interpreter?.close();
   }
 }
