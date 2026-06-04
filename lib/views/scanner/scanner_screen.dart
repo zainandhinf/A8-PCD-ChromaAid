@@ -26,6 +26,8 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
   final AiService _aiService = AiService();
 
   bool _isProcessing = false;
+  DateTime _lastAiProcessedTime = DateTime.now();
+  DateTime _lastPcdProcessedTime = DateTime.now();
   PcdResult? _currentResult;
   String _detectedObject = "Menganalisis...";
   String _activeSession = 'Sesi Utama';
@@ -59,10 +61,21 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
 
         _cameraController!.startImageStream((CameraImage image) async {
           if (_isProcessing) return;
+          
+          final now = DateTime.now();
+          if (now.difference(_lastPcdProcessedTime).inMilliseconds < 333) return;
+          
           _isProcessing = true;
+          _lastPcdProcessedTime = now;
 
           final rgbResult = await _pcdService.extractColorFromFrame(image);
-          final label = await _aiService.runObjectDetection(image);
+          
+          final kini = DateTime.now();
+          String? label;
+          if (kini.difference(_lastAiProcessedTime).inMilliseconds > 1200) {
+            label = await _aiService.runObjectDetection(image);
+            _lastAiProcessedTime = kini;
+          }
 
           if (mounted) {
             setState(() {

@@ -319,7 +319,14 @@ class _ColorHistoryScreenState extends State<ColorHistoryScreen> with SingleTick
           onDismissed: (_) => _deleteScan(key),
           child: _ScanListItem(
             scan: scan,
-            onTap: () {}, // Removed scan detail navigation as requested rollback is for dashboard UI.
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ScanDetailScreen(scan: scan),
+                ),
+              );
+            },
             onEditNote: () => _editNote(key, scan),
           ),
         );

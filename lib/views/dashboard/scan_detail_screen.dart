@@ -1,9 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../models/hive_color_model.dart';
+import '../../models/color_scan_model.dart';
 import '../../services/color_recommendation_service.dart';
-
+import '../../services/scan_storage_service.dart';
 
 /// ScanDetailScreen: halaman detail lengkap untuk satu hasil scan.
 ///
@@ -13,7 +13,7 @@ import '../../services/color_recommendation_service.dart';
 ///   - Rekomendasi warna pakaian dari ColorRecommendationService
 ///   - Tombol copy hex, edit catatan, hapus
 class ScanDetailScreen extends StatefulWidget {
-  final HiveColorModel scan;
+  final ColorScanModel scan;
 
   const ScanDetailScreen({
     super.key,
@@ -53,10 +53,10 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     }
   }
 
-  // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   Future<void> _editNote() async {
-    final ctrl = TextEditingController(text: widget.scan.catatan);
+    final ctrl = TextEditingController(text: widget.scan.note);
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -79,7 +79,8 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
           ),
           TextButton(
             onPressed: () async {
-              widget.scan.catatan = ctrl.text.trim(); await widget.scan.save();
+              await ScanStorageService.updateNote(
+                  widget.scan, ctrl.text.trim());
               if (mounted) {
                 Navigator.pop(context);
                 setState(() {});
@@ -120,16 +121,16 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
 
     if (confirm == true && mounted) {
-      await widget.scan.delete();
+      await ScanStorageService.delete(widget.scan);
       Navigator.pop(context, 'deleted');
     }
   }
 
-  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final color = Color(((0xFF << 24) | (widget.scan.r << 16) | (widget.scan.g << 8) | widget.scan.b));
+    final color = Color(widget.scan.colorValue);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -154,7 +155,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Hero AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Hero AppBar ───────────────────────────────────────────────────────────
 
   Widget _buildHeroAppBar(Color color) {
     return SliverAppBar(
@@ -185,7 +186,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
                 Text(
                   widget.scan.hex.toUpperCase(),
                   style: TextStyle(
-                    color: ((0.299 * widget.scan.r + 0.587 * widget.scan.g + 0.114 * widget.scan.b) > 128) ? Colors.black87 : Colors.white,
+                    color: widget.scan.isLight ? Colors.black87 : Colors.white,
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'monospace',
@@ -193,11 +194,11 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                if (widget.scan.nama.isNotEmpty)
+                if (widget.scan.colorName.isNotEmpty)
                   Text(
-                    widget.scan.nama,
+                    widget.scan.colorName,
                     style: TextStyle(
-                      color: ((0.299 * widget.scan.r + 0.587 * widget.scan.g + 0.114 * widget.scan.b) > 128)
+                      color: widget.scan.isLight
                           ? Colors.black54
                           : Colors.white70,
                       fontSize: 14,
@@ -211,7 +212,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Color Values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Color Values ──────────────────────────────────────────────────────────
 
   Widget _buildColorValues(Color color) {
     return Container(
@@ -257,7 +258,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: widget.scan.isSynced
+                        color: widget.scan.synced
                             ? Colors.greenAccent.withOpacity(0.15)
                             : Colors.orangeAccent.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
@@ -266,19 +267,19 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            widget.scan.isSynced
+                            widget.scan.synced
                                 ? Icons.cloud_done_outlined
                                 : Icons.cloud_upload_outlined,
                             size: 11,
-                            color: widget.scan.isSynced
+                            color: widget.scan.synced
                                 ? Colors.greenAccent
                                 : Colors.orangeAccent,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            widget.scan.isSynced ? 'Synced' : 'Belum sync',
+                            widget.scan.synced ? 'Synced' : 'Belum sync',
                             style: TextStyle(
-                              color: widget.scan.isSynced
+                              color: widget.scan.synced
                                   ? Colors.greenAccent
                                   : Colors.orangeAccent,
                               fontSize: 10,
@@ -323,10 +324,10 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Metadata ──────────────────────────────────────────────────────────────
 
   Widget _buildMetaSection() {
-    final dt = DateTime.tryParse(widget.scan.savedAt.toIso8601String())?.toLocal();
+    final dt = DateTime.tryParse(widget.scan.capturedAt)?.toLocal();
     final dateStr = dt != null
         ? '${dt.day}/${dt.month}/${dt.year}  '
           '${dt.hour.toString().padLeft(2, '0')}:'
@@ -355,21 +356,21 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
           _DetailRow(
             icon: Icons.folder_outlined,
             label: 'Sesi',
-            value: widget.scan.sesiId,
+            value: widget.scan.session,
           ),
           _DetailRow(
             icon: Icons.access_time,
             label: 'Waktu',
             value: dateStr,
           ),
-          if (widget.scan.nama.isNotEmpty)
+          if (widget.scan.colorName.isNotEmpty)
             _DetailRow(
               icon: Icons.palette_outlined,
               label: 'Nama Warna',
-              value: widget.scan.nama,
+              value: widget.scan.colorName,
             ),
           _NoteRow(
-            note: widget.scan.catatan,
+            note: widget.scan.note,
             onEdit: _editNote,
           ),
         ],
@@ -377,7 +378,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Context Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Context Toggle ────────────────────────────────────────────────────────
 
   Widget _buildContextToggle() {
     return Container(
@@ -399,7 +400,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
           Row(
             children: [
               _ContextChip(
-                label: 'ðŸ¤– Auto Detect',
+                label: '🤖 Auto Detect',
                 value: 'auto',
                 selected: _inputContext == 'auto',
                 onTap: () {
@@ -409,7 +410,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
               ),
               const SizedBox(width: 8),
               _ContextChip(
-                label: 'ðŸ§´ Warna Kulit',
+                label: '🧴 Warna Kulit',
                 value: 'skin',
                 selected: _inputContext == 'skin',
                 onTap: () {
@@ -419,7 +420,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
               ),
               const SizedBox(width: 8),
               _ContextChip(
-                label: 'ðŸ‘• Pakaian',
+                label: '👕 Pakaian',
                 value: 'fabric',
                 selected: _inputContext == 'fabric',
                 onTap: () {
@@ -434,7 +435,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Recommendations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Recommendations ───────────────────────────────────────────────────────
 
   Widget _buildRecommendationsSection() {
     return Container(
@@ -531,7 +532,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
     );
   }
 
-  // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   Widget _buildActionsSection() {
     return Container(
@@ -574,7 +575,7 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
   }
 }
 
-// â”€â”€ Sub-widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sub-widgets ────────────────────────────────────────────────────────────────
 
 class _DetailRow extends StatelessWidget {
   final IconData icon;
@@ -738,7 +739,7 @@ class _RecommendationCard extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
-                Text('${recommendation.color.name} â€” ${recommendation.color.hex.toUpperCase()} disalin'),
+                Text('${recommendation.color.name} — ${recommendation.color.hex.toUpperCase()} disalin'),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -824,4 +825,3 @@ class _RecommendationCard extends StatelessWidget {
     );
   }
 }
-
