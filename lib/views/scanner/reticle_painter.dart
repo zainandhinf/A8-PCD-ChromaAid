@@ -1,55 +1,73 @@
 import 'package:flutter/material.dart';
 
 class ReticlePainter extends CustomPainter {
-  final Offset center;
-  final double boxSize;
+  final Offset focusPoint;
+  final bool isCalibrating;
 
-  ReticlePainter({required this.center, this.boxSize = 120});
+  ReticlePainter({required this.focusPoint, this.isCalibrating = false});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
+    final center = focusPoint;
 
-    final accentPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 3
+    final paintLine = Paint()
+      ..color = Colors.white54
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
-
-    final circlePaint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      
+    final paintAccent = Paint()
+      ..color = const Color(0xFF00FFC4) // Cyan accent
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+      
+    final paintFill = Paint()
+      ..color = const Color(0xFF00FFC4).withOpacity(0.3)
       ..style = PaintingStyle.fill;
 
-    final rect = Rect.fromCenter(center: center, width: boxSize, height: boxSize);
-    canvas.drawRect(rect, borderPaint);
-    canvas.drawCircle(center, 8, circlePaint);
+    // Corner brackets
+    double bracketLen = 30.0;
+    double cornerOffset = 120.0;
+    
+    // Top Left
+    canvas.drawLine(Offset(center.dx - cornerOffset, center.dy - cornerOffset), Offset(center.dx - cornerOffset + bracketLen, center.dy - cornerOffset), paintLine);
+    canvas.drawLine(Offset(center.dx - cornerOffset, center.dy - cornerOffset), Offset(center.dx - cornerOffset, center.dy - cornerOffset + bracketLen), paintLine);
+    
+    // Top Right
+    canvas.drawLine(Offset(center.dx + cornerOffset, center.dy - cornerOffset), Offset(center.dx + cornerOffset - bracketLen, center.dy - cornerOffset), paintLine);
+    canvas.drawLine(Offset(center.dx + cornerOffset, center.dy - cornerOffset), Offset(center.dx + cornerOffset, center.dy - cornerOffset + bracketLen), paintLine);
+    
+    // Bottom Left
+    canvas.drawLine(Offset(center.dx - cornerOffset, center.dy + cornerOffset), Offset(center.dx - cornerOffset + bracketLen, center.dy + cornerOffset), paintLine);
+    canvas.drawLine(Offset(center.dx - cornerOffset, center.dy + cornerOffset), Offset(center.dx - cornerOffset, center.dy + cornerOffset - bracketLen), paintLine);
+    
+    // Bottom Right
+    canvas.drawLine(Offset(center.dx + cornerOffset, center.dy + cornerOffset), Offset(center.dx + cornerOffset - bracketLen, center.dy + cornerOffset), paintLine);
+    canvas.drawLine(Offset(center.dx + cornerOffset, center.dy + cornerOffset), Offset(center.dx + cornerOffset, center.dy + cornerOffset - bracketLen), paintLine);
 
-    const double cornerLength = 20;
+    // Crosshairs
+    canvas.drawLine(Offset(center.dx, center.dy - 100), Offset(center.dx, center.dy + 100), paintLine);
+    canvas.drawLine(Offset(center.dx - 100, center.dy), Offset(center.dx + 100, center.dy), paintLine);
+    
+    // Concentric circles (Radar style)
+    canvas.drawCircle(center, 40, paintLine);
+    canvas.drawCircle(center, 80, paintLine);
+    
+    // Radar sectors
+    final path = Path();
+    path.addArc(Rect.fromCircle(center: center, radius: 80), -0.5, 1.0);
+    path.addArc(Rect.fromCircle(center: center, radius: 80), 3.14 - 0.5, 1.0);
+    canvas.drawPath(path, Paint()..color=Colors.white12..style=PaintingStyle.stroke..strokeWidth=20);
 
-    // corner brackets
-    canvas.drawLine(rect.topLeft, rect.topLeft + const Offset(cornerLength, 0), accentPaint);
-    canvas.drawLine(rect.topLeft, rect.topLeft + const Offset(0, cornerLength), accentPaint);
-
-    canvas.drawLine(rect.topRight, rect.topRight + const Offset(-cornerLength, 0), accentPaint);
-    canvas.drawLine(rect.topRight, rect.topRight + const Offset(0, cornerLength), accentPaint);
-
-    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + const Offset(cornerLength, 0), accentPaint);
-    canvas.drawLine(rect.bottomLeft, rect.bottomLeft + const Offset(0, -cornerLength), accentPaint);
-
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + const Offset(-cornerLength, 0), accentPaint);
-    canvas.drawLine(rect.bottomRight, rect.bottomRight + const Offset(0, -cornerLength), accentPaint);
-
-    // crosshair
-    canvas.drawLine(center + const Offset(-18, 0), center + const Offset(-6, 0), borderPaint);
-    canvas.drawLine(center + const Offset(6, 0), center + const Offset(18, 0), borderPaint);
-    canvas.drawLine(center + const Offset(0, -18), center + const Offset(0, -6), borderPaint);
-    canvas.drawLine(center + const Offset(0, 6), center + const Offset(0, 18), borderPaint);
+    // Center target dot
+    canvas.drawCircle(center, 4, paintAccent);
+    canvas.drawCircle(center, 8, paintLine);
+    if (isCalibrating) {
+      canvas.drawCircle(center, 6, paintFill);
+    }
   }
 
   @override
   bool shouldRepaint(covariant ReticlePainter oldDelegate) {
-    return center != oldDelegate.center || boxSize != oldDelegate.boxSize;
+    return oldDelegate.focusPoint != focusPoint || oldDelegate.isCalibrating != isCalibrating;
   }
 }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/hive_color_model.dart';
-import '../scanner/scanner_screen.dart';
-import 'scan_detail_screen.dart';
+import '../widgets/custom_bottom_nav.dart';
 import '../settings/settings_screen.dart';
 import '../../services/ai_service.dart';
 
@@ -16,106 +17,116 @@ class ColorHistoryScreen extends StatefulWidget {
 
 class _ColorHistoryScreenState extends State<ColorHistoryScreen> {
   String _selectedFilter = 'ALL';
-  final List<String> _filters = ['ALL', 'WARM', 'COOL', 'NEUTRAL'];
+  final List<String> _filters = ['ALL', 'Warm', 'Cold', 'Neutral', 'Nature'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF101214), // Deep tech dark
       appBar: AppBar(
-        title: const Text('My Palette', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text('My Palette', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
+        backgroundColor: const Color(0xFF101214),
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SettingsScreen(aiService: AiService()),
-                ),
-              );
-            },
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.cloud_done_outlined, color: Colors.white54, size: 16),
+                  const SizedBox(width: 4),
+                  Text('Synced', style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 12)),
+                ],
+              ),
+            ),
           ),
-          // Indicator for Sync will be added here in Sprint 4
           IconButton(
-            icon: const Icon(Icons.sync, color: Colors.white),
-            onPressed: () {
-              // Sync logic
-            },
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen(aiService: AiService()))),
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildFilterChips(),
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              style: GoogleFonts.spaceMono(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search colors...',
+                hintStyle: GoogleFonts.spaceMono(color: Colors.white38),
+                prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                filled: true,
+                fillColor: const Color(0xFF1E1E1E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.white24),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.white24),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.white),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          
+          // Filters
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: _filters.map((f) => Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedFilter = f),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _selectedFilter == f ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _selectedFilter == f ? Colors.white : Colors.white24),
+                    ),
+                    child: Text(
+                      f,
+                      style: GoogleFonts.spaceMono(
+                        color: _selectedFilter == f ? Colors.black : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              )).toList(),
+            ),
+          ),
+          
+          // Grid
           Expanded(
-            child: ValueListenableBuilder<Box<HiveColorModel>>(
+            child: ValueListenableBuilder(
               valueListenable: Hive.box<HiveColorModel>('colorsBox').listenable(),
-              builder: (context, box, _) {
+              builder: (context, Box<HiveColorModel> box, _) {
                 if (box.values.isEmpty) {
-                  return const Center(
-                    child: Text('Belum ada warna tersimpan',
-                        style: TextStyle(color: Colors.white54)),
-                  );
+                  return Center(child: Text("Library Empty", style: GoogleFonts.spaceMono(color: Colors.white54)));
                 }
-
-                // Apply Filter
-                final filteredColors = box.values.where((color) {
-                  if (_selectedFilter == 'ALL') return true;
-                  return color.tags.contains(_selectedFilter);
-                }).toList();
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.8,
                   ),
-                  itemCount: filteredColors.length,
+                  itemCount: box.values.length,
                   itemBuilder: (context, index) {
-                    final colorData = filteredColors[index];
-                    final color = Color.fromRGBO(
-                        colorData.r, colorData.g, colorData.b, 1.0);
-
-                    return GestureDetector(
-                      onTap: () {
-                        // Nanti diarahkan ke detail
-                      },
-                      onLongPress: () => _showDeleteDialog(colorData),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              bottom: 8,
-                              left: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  colorData.hex,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
+                    final item = box.getAt(index)!;
+                    return _buildColorCard(item);
                   },
                 );
               },
@@ -124,67 +135,72 @@ class _ColorHistoryScreenState extends State<ColorHistoryScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ScannerScreen()),
-          );
-        },
         backgroundColor: Colors.white,
-        child: const Icon(Icons.camera_alt, color: Colors.black),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = _filters[index];
-          final isSelected = _selectedFilter == filter;
-          return FilterChip(
-            label: Text(filter),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                _selectedFilter = filter;
-              });
-            },
-            selectedColor: Colors.white,
-            labelStyle: TextStyle(
-              color: isSelected ? Colors.black : Colors.white,
-            ),
-            backgroundColor: const Color(0xFF2C2C2C),
-          );
+        onPressed: () {
+          Navigator.pop(context); // Go back to Scanner
         },
+        child: const Icon(Icons.camera_alt_outlined, color: Colors.black),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: CustomBottomNav(
+        currentIndex: 0, 
+        onTap: (index) {
+          if (index == 2) {
+             // Already on palette
+          }
+        }
       ),
     );
   }
 
-  void _showDeleteDialog(HiveColorModel color) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Hapus Warna', style: TextStyle(color: Colors.white)),
-        content: Text('Anda yakin ingin menghapus warna ${color.hex}?',
-            style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+  Widget _buildColorCard(HiveColorModel item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Container(
+              color: Color(item.colorValue),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              color.delete();
-              Navigator.pop(context);
-            },
-            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    item.colorName ?? "Unknown", 
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'HEX: ${item.hexColor}',
+                    style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        item.sessionName.isNotEmpty ? item.sessionName : "Nature",
+                        style: GoogleFonts.spaceMono(color: Colors.white70, fontSize: 10),
+                      ),
+                      Text(
+                        DateFormat('MMM dd').format(item.timestamp),
+                        style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

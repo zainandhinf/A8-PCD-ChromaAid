@@ -6,6 +6,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'models/hive_color_model.dart';
 import 'services/color_storage_service.dart';
 import 'views/onboarding/onboarding_screen.dart';
+import 'views/scanner/scanner_screen.dart';
+import 'views/history/color_history_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +47,15 @@ class ChromaAidApp extends StatelessWidget {
           primary: Colors.white,
           secondary: Colors.white70,
         ),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
         useMaterial3: true,
       ),
-      home: const OnboardingScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const OnboardingScreen(),
+        '/scanner': (context) => const ScannerScreen(),
+        '/history': (context) => const ColorHistoryScreen(),
+      },
     );
   }
 }

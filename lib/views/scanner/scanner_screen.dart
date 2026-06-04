@@ -2,12 +2,14 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
 import '../../services/coordinate_service.dart';
 import '../../services/scan_storage_service.dart';
-import '../../models/color_scan_model.dart';
+import '../../models/hive_color_model.dart';
+import '../../utils/color_utils.dart';
 import '../history/color_history_screen.dart';
 import 'reticle_painter.dart';
 
@@ -430,7 +432,6 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
   }
 }
 
-// ── Color Info Panel (Dipisah menjadi widget mandiri di luar kelas State) ──
 class ColorInfoPanel extends StatelessWidget {
   final PcdResult result;
   final String detectedObject;
@@ -443,53 +444,82 @@ class ColorInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Determine the color name using the new utility
+    final String colorName = ColorUtils.getNearestColorName(result.r, result.g, result.b);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.75),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-        boxShadow: [
-          BoxShadow(
-            color: Color(result.colorValue).withValues(alpha: 0.2), 
-            blurRadius: 20,
-          )
-        ],
+        color: const Color(0xFF1E1E1E).withOpacity(0.85),
+        border: Border(top: BorderSide(color: Colors.white24, width: 1)), // Subtle top border
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Square Color Swatch
           Container(
-            width: 52,
-            height: 52,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: Color(result.colorValue),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white38, width: 2),
+              border: Border.all(color: Colors.white24, width: 1),
             ),
           ),
           const SizedBox(width: 16),
+          
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
+                    Expanded(
                       child: Text(
-                        result.hex,
-                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'monospace', letterSpacing: 1),
+                        colorName,
+                        style: GoogleFonts.spaceMono(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white38),
+                      ),
+                      child: Text(
+                        '98%\nMatch',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.spaceMono(color: Colors.white70, fontSize: 10),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text('R: ${result.r}  G: ${result.g}  B: ${result.b}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 4),
-                Text('Konteks AI: $detectedObject', style: const TextStyle(color: Colors.lightGreenAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                const Text('PCD: WB → Contrast → Average Pooling 5×5', style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 0.5)),
+                Text(
+                  '[OBJ: $detectedObject]',
+                  style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      'HEX:\n${result.hex}',
+                      style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(width: 1, height: 20, color: Colors.white24),
+                    const SizedBox(width: 12),
+                    Text(
+                      'RGB: ${result.r}, ${result.g},\n${result.b}',
+                      style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
