@@ -8,7 +8,7 @@ import '../../services/ai_service.dart';
 import '../../services/coordinate_service.dart';
 import '../../services/scan_storage_service.dart';
 import '../../models/color_scan_model.dart';
-import '../dashboard/dashboard_screen.dart';
+import '../history/color_history_screen.dart';
 import 'reticle_painter.dart';
 
 class ScannerScreen extends StatefulWidget {
@@ -370,7 +370,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
             icon: const Icon(Icons.dashboard_outlined, color: Colors.white70),
             tooltip: 'Dashboard',
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ColorHistoryScreen()));
             },
           ),
         ],

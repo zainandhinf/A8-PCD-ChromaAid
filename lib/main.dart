@@ -3,8 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'models/color_scan_model.dart';
-import 'services/scan_storage_service.dart';
+import 'models/hive_color_model.dart';
+import 'services/color_storage_service.dart';
 import 'views/onboarding/onboarding_screen.dart';
 
 Future<void> main() async {
@@ -19,16 +19,13 @@ Future<void> main() async {
   // Inisialisasi Hive
   await Hive.initFlutter();
 
-  // Daftarkan adapter ColorScanModel (typeId: 0)
+  // Daftarkan adapter
   if (!Hive.isAdapterRegistered(0)) {
-    Hive.registerAdapter(ColorScanModelAdapter());
+    Hive.registerAdapter(HiveColorModelAdapter());
   }
 
-  // Buka box color_history
-  await Hive.openBox<ColorScanModel>('color_history');
-
-  // Mulai auto-sync saat koneksi kembali online
-  ScanStorageService.listenToConnectivity();
+  // Buka box
+  await Hive.openBox<HiveColorModel>('colorsBox');
 
   runApp(const ChromaAidApp());
 }

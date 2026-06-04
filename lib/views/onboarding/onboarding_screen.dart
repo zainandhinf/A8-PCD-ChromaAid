@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 // import '../scanner/scanner_screen.dart';
-import '../dashboard/dashboard_screen.dart';
+import '../history/color_history_screen.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -58,7 +58,7 @@ class OnboardingScreen extends StatelessWidget {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const DashboardScreen(),
+                        builder: (_) => const ColorHistoryScreen(),
                       ),
                     );
                   },

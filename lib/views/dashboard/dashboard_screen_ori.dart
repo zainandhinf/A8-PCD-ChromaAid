@@ -7,7 +7,7 @@ import '../../models/color_scan_model.dart';
 import '../../services/scan_storage_service.dart';
 import '../scanner/scanner_screen.dart';
 
-/// DashboardScreen: pusat data semua hasil scan ChromaAid.
+/// ColorHistoryScreen: pusat data semua hasil scan ChromaAid.
 ///
 /// Fitur:
 ///   - Statistik ringkasan (total scan, sesi, rata-rata warna)
@@ -18,14 +18,14 @@ import '../scanner/scanner_screen.dart';
 ///   - Swipe-to-delete + edit catatan
 ///   - Tombol sync manual ke MongoDB
 ///   - Indikator status sync per entri
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+class ColorHistoryScreen extends StatefulWidget {
+  const ColorHistoryScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<ColorHistoryScreen> createState() => _ColorHistoryScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
+class _ColorHistoryScreenState extends State<ColorHistoryScreen>
     with SingleTickerProviderStateMixin {
   List<ColorScanModel> _allScans = [];
   List<ColorScanModel> _filtered = [];
