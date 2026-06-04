@@ -1,5 +1,57 @@
 import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
+// Top-level function for preprocessing
+Float32List preprocessImage(Map<String, dynamic> args) {
+  final Uint8List planeY = args['planeY'];
+  final int width = args['width'];
+  final int height = args['height'];
+  final int bytesPerRow = args['bytesPerRow'];
+
+  final int scaleX = width ~/ 640;
+  final int scaleY = height ~/ 640;
+
+  final Float32List input = Float32List(1 * 640 * 640 * 3);
+  int idx = 0;
+
+  for (int y = 0; y < 640; y++) {
+    int srcY = (y * scaleY).clamp(0, height - 1);
+    int rowOffset = srcY * bytesPerRow;
+    for (int x = 0; x < 640; x++) {
+      int srcX = (x * scaleX).clamp(0, width - 1);
+      double val = planeY[rowOffset + srcX] / 255.0;
+      input[idx++] = val;
+      input[idx++] = val;
+      input[idx++] = val;
+    }
+  }
+  return input;
+}
+
+// Top-level function for postprocessing
+int postprocessOutput(Float32List outputBuffer) {
+  double maxScore = 0.0;
+  int detectedClassId = -1;
+  // outputBuffer is [1, 84, 8400] flat
+  // 84 = 4 bounding box + 80 class scores
+  // So for classId 0..79, the index is (4 + classId) * 8400 + i
+  
+  for (int i = 0; i < 8400; i++) {
+    for (int classId = 0; classId < 80; classId++) {
+      double score = outputBuffer[(4 + classId) * 8400 + i];
+      if (score > maxScore) {
+        maxScore = score;
+        detectedClassId = classId;
+      }
+    }
+  }
+  
+  // Pack result: upper 16 bits = classId, lower 16 bits = score * 10000
+  // Or just return a Map. compute supports Map.
+  return (detectedClassId << 16) | (maxScore * 10000).toInt();
+}
 
 class AiService {
   static final AiService _instance = AiService._internal();
@@ -30,6 +82,7 @@ class AiService {
   ];
 
   Future<void> initModel() async {
+    if (_isModelLoaded) return;
     try {
       _interpreter = await Interpreter.fromAsset('assets/yolov8_nano.tflite');
       _isModelLoaded = true;
@@ -42,42 +95,43 @@ class AiService {
     if (!_isModelLoaded || _interpreter == null) return "AI Offline";
 
     try {
-      var inputTensor = List.generate(1, (_) => List.generate(640, (_) => List.generate(640, (_) => List.filled(3, 0.0))));
-      final planeY = image.planes[0];
-      int scaleX = image.width ~/ 640;
-      int scaleY = image.height ~/ 640;
+      // 1. Preprocess in Isolate (convert CameraImage to flat Float32List)
+      final inputBuffer = await compute(preprocessImage, {
+        'planeY': image.planes[0].bytes,
+        'width': image.width,
+        'height': image.height,
+        'bytesPerRow': image.planes[0].bytesPerRow,
+      });
 
-      for (int y = 0; y < 640; y++) {
-        for (int x = 0; x < 640; x++) {
-          int srcX = (x * scaleX).clamp(0, image.width - 1);
-          int srcY = (y * scaleY).clamp(0, image.height - 1);
-          inputTensor[0][y][x][0] = planeY.bytes[srcY * planeY.bytesPerRow + srcX] / 255.0;
-          inputTensor[0][y][x][1] = inputTensor[0][y][x][0];
-          inputTensor[0][y][x][2] = inputTensor[0][y][x][0];
-        }
-      }
+      // 2. Inference on Main Thread (Fast because tensor is flat Float32List)
+      // Input shape is [1, 640, 640, 3] -> flat 1228800
+      var inputTensor = inputBuffer.buffer.asUint8List(); 
+      // Output shape is [1, 84, 8400] -> flat 705600
+      final Float32List outputBuffer = Float32List(1 * 84 * 8400);
 
-      var outputTensor = List.generate(1, (_) => List.generate(84, (_) => List.filled(8400, 0.0)));
-      _interpreter!.run(inputTensor, outputTensor);
+      // tflite_flutter expects the reshaped list or raw buffer.
+      // But we can just use run() if we pass the raw tensor?
+      // Actually, passing flat list directly works if reshaped.
+      var inputReshaped = inputBuffer.reshape([1, 640, 640, 3]);
+      var outputReshaped = outputBuffer.reshape([1, 84, 8400]);
+      
+      _interpreter!.run(inputReshaped, outputReshaped);
 
-      double maxScore = 0.0;
-      int detectedClassId = -1;
+      // 3. Postprocess in Isolate
+      final packedResult = await compute(postprocessOutput, outputBuffer);
+      
+      int classId = packedResult >> 16;
+      double maxScore = (packedResult & 0xFFFF) / 10000.0;
 
-      for (int i = 0; i < 8400; i++) {
-        for (int classId = 0; classId < 80; classId++) {
-          double score = outputTensor[0][4 + classId][i];
-          if (score > maxScore) {
-            maxScore = score;
-            detectedClassId = classId;
-          }
-        }
-      }
+      // Handle sign extension if classId was -1
+      if (classId > 32767) classId = -1;
 
-      if (detectedClassId != -1 && maxScore > _threshold) {
-        return _clothingLabels[detectedClassId].toUpperCase();
+      if (classId != -1 && maxScore > _threshold) {
+        return _clothingLabels[classId].toUpperCase();
       }
       return "Pakaian / Kulit";
     } catch (e) {
+      print("AI Error: $e");
       return "Scanning...";
     }
   }

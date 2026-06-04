@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/hive_color_model.dart';
@@ -396,38 +396,41 @@ class _ScanDetailScreenState extends State<ScanDetailScreen> {
               ),
             ),
           ),
-          Row(
-            children: [
-              _ContextChip(
-                label: 'ðŸ¤– Auto Detect',
-                value: 'auto',
-                selected: _inputContext == 'auto',
-                onTap: () {
-                  setState(() => _inputContext = 'auto');
-                  _loadRecommendations();
-                },
-              ),
-              const SizedBox(width: 8),
-              _ContextChip(
-                label: 'ðŸ§´ Warna Kulit',
-                value: 'skin',
-                selected: _inputContext == 'skin',
-                onTap: () {
-                  setState(() => _inputContext = 'skin');
-                  _loadRecommendations();
-                },
-              ),
-              const SizedBox(width: 8),
-              _ContextChip(
-                label: 'ðŸ‘• Pakaian',
-                value: 'fabric',
-                selected: _inputContext == 'fabric',
-                onTap: () {
-                  setState(() => _inputContext = 'fabric');
-                  _loadRecommendations();
-                },
-              ),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _ContextChip(
+                  label: '🤖 Auto Detect',
+                  value: 'auto',
+                  selected: _inputContext == 'auto',
+                  onTap: () {
+                    setState(() => _inputContext = 'auto');
+                    _loadRecommendations();
+                  },
+                ),
+                const SizedBox(width: 8),
+                _ContextChip(
+                  label: '🖐️ Warna Kulit',
+                  value: 'skin',
+                  selected: _inputContext == 'skin',
+                  onTap: () {
+                    setState(() => _inputContext = 'skin');
+                    _loadRecommendations();
+                  },
+                ),
+                const SizedBox(width: 8),
+                _ContextChip(
+                  label: '👕 Pakaian',
+                  value: 'fabric',
+                  selected: _inputContext == 'fabric',
+                  onTap: () {
+                    setState(() => _inputContext = 'fabric');
+                    _loadRecommendations();
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -809,10 +812,20 @@ class _RecommendationCard extends StatelessWidget {
                   Text(
                     recommendation.color.name,
                     style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 9,
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    recommendation.reason,
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 8,
+                    ),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
