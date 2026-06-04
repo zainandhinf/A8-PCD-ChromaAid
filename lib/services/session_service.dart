@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'scan_storage_service.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../models/hive_color_model.dart';
 
 class SessionService extends ChangeNotifier {
   // Singleton Pattern
@@ -14,8 +15,11 @@ class SessionService extends ChangeNotifier {
 
   /// 1. MENGAMBIL DAFTAR SEMUA SESI (Gabungan dari database + default)
   List<String> getAvailableSessions() {
-    // Mengambil daftar nama sesi yang sudah terekam di Hive melalui ScanStorageService kamu
-    final savedSessions = ScanStorageService.sessions;
+    // Mengambil daftar nama sesi yang sudah terekam di Hive
+    final box = Hive.isBoxOpen('colorsBox') ? Hive.box<HiveColorModel>('colorsBox') : null;
+    final List<String> savedSessions = box != null 
+        ? box.values.map((e) => e.sesiId).where((id) => id.isNotEmpty).toSet().toList() 
+        : [];
     
     // Pastikan sesi default atau sesi aktif saat ini selalu masuk ke dalam daftar pilhan
     final Set<String> allSessions = {_currentSession, 'Sesi Utama', ...savedSessions};

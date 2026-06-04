@@ -1,17 +1,15 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
 import '../../services/coordinate_service.dart';
 import '../../services/color_storage_service.dart';
+import '../../services/session_service.dart';
 import '../../models/hive_color_model.dart';
 import '../../utils/color_utils.dart';
 import '../history/color_history_screen.dart';
-import 'reticle_painter.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -23,37 +21,32 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
-  DateTime _lastPcdProcessedTime = DateTime.now();
-  Size? _previewSize;
 
   final PcdService _pcdService = PcdService();
   final AiService _aiService = AiService();
 
   bool _isProcessing = false;
   PcdResult? _currentResult;
-  String _detectedObject = "Memuat AI...";
-  String _activeSession = 'Percobaan 1';
-
-  // Timestamps untuk membatasi frekuensi AI agar tidak lag
-  DateTime _lastAiProcessedTime = DateTime.now();
+  String _detectedObject = "Menganalisis...";
+  String _activeSession = 'Sesi Utama';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _activeSession = SessionService().currentSession;
     _setupSystem();
   }
 
-    Future<void> _setupSystem() async {
-      if (_cameraController?.value.isInitialized ?? false) return;
-      await _aiService.initModel();
-      try {
-        final cameras = await availableCameras();
-        if (cameras.isEmpty) return;
+  Future<void> _setupSystem() async {
+    await _aiService.initModel();
 
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
         _cameraController = CameraController(
           cameras[0],
-          ResolutionPreset.medium, // Resolusi aman & jernih
+          ResolutionPreset.medium,
           enableAudio: false,
         );
 
@@ -62,58 +55,34 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
 
         setState(() {
           _isCameraInitialized = true;
-          _previewSize = _cameraController!.value.previewSize;
         });
 
         _cameraController!.startImageStream((CameraImage image) async {
           if (_isProcessing) return;
-          
-          final kini = DateTime.now();
-          // Throttling: batasi pemrosesan PCD maksimal ~3 frame per detik
-          if (kini.difference(_lastPcdProcessedTime).inMilliseconds < 333) return;
-          
           _isProcessing = true;
-          _lastPcdProcessedTime = kini;
 
-          try {
-            // Cek apakah sudah waktunya menjalankan AI (misal setiap 1200ms)
-            final bool shouldRunAi = kini.difference(_lastAiProcessedTime).inMilliseconds > 1200;
+          final rgbResult = await _pcdService.extractColorFromFrame(image);
+          final label = await _aiService.runObjectDetection(image);
 
-            // Kirim semua data dan flag ke background Isolate terpadu
-            final backgroundResult = await compute(_executeHeavyTasksInBackground, {
-              'image': image,
-              'runAi': shouldRunAi,
+          if (mounted) {
+            setState(() {
+              _currentResult = rgbResult;
+              if (label != null) _detectedObject = label;
             });
-
-            if (shouldRunAi) {
-              _lastAiProcessedTime = kini;
-            }
-
-            if (mounted) {
-              setState(() {
-                // Ambil hasil ekstraksi warna dari background
-                _currentResult = backgroundResult['pcdResult'] as PcdResult?;
-                
-                // Jika AI berjalan, update labelnya. Jika tidak, gunakan label lama.
-                if (shouldRunAi) {
-                  _detectedObject = backgroundResult['aiLabel'] as String? ?? _detectedObject;
-                }
-              });
-            }
-          } catch (e) {
-            debugPrint('Gagal memproses frame di Isolate Terpadu: $e');
-          } finally {
-            _isProcessing = false;
           }
+
+          _isProcessing = false;
         });
-      } catch (e) {
-        debugPrint('Error inisialisasi kamera: $e');
       }
+    } catch (e) {
+      debugPrint("Error inisialisasi sistem: $e");
     }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _cameraController?.stopImageStream();
       _cameraController?.dispose();
@@ -131,17 +100,18 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     super.dispose();
   }
 
-  // Meluncurkan bottom sheet untuk menyimpan hasil scan warna
   Future<void> showSaveDialog() async {
     if (_currentResult == null) return;
     final result = _currentResult!;
     final noteController = TextEditingController();
     String selectedSession = _activeSession;
 
-    final existingSessions = ScanStorageService.sessions;
+    final existingSessions = SessionService().getAvailableSessions();
     if (!existingSessions.contains(selectedSession)) {
       existingSessions.add(selectedSession);
     }
+    
+    final colorName = ColorUtils.getNearestColorName(result.r, result.g, result.b);
 
     await showModalBottomSheet(
       context: context,
@@ -223,33 +193,6 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                             ),
                           ),
                         )),
-                    GestureDetector(
-                      onTap: () async {
-                        final newSession = await showNewSessionDialog();
-                        if (newSession != null && newSession.isNotEmpty) {
-                          setSheetState(() {
-                            existingSessions.add(newSession);
-                            selectedSession = newSession;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white12,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, color: Colors.white54, size: 14),
-                            SizedBox(width: 4),
-                            Text('Sesi Baru', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -327,55 +270,14 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     );
   }
 
-  // Dialog kecil untuk menambahkan kategori/nama sesi percobaan baru
-  Future<String?> showNewSessionDialog() async {
-    final ctrl = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Sesi Baru', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: 'Nama sesi...', hintStyle: TextStyle(color: Colors.white38)),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('Buat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Offset _getReticleCenter(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    if (_cameraController == null || _previewSize == null) {
-      return screenSize.center(Offset.zero);
-    }
-
-    return CoordinateService.mapSensorToScreen(
-      sensorPoint: Offset(_previewSize!.width / 2, _previewSize!.height / 2),
-      sensorSize: Size(_previewSize!.width, _previewSize!.height),
-      widgetSize: screenSize,
-      isFrontCamera: _cameraController!.description.lensDirection == CameraLensDirection.front,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final reticleCenter = _getReticleCenter(context);
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(_activeSession, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
         actions: [
           IconButton(
             icon: const Icon(Icons.dashboard_outlined, color: Colors.white70),
@@ -389,17 +291,66 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // Layer 1: Live Feed Kamera
           if (_isCameraInitialized) CameraPreview(_cameraController!) else const Center(child: CircularProgressIndicator(color: Colors.white)),
-          if (_isCameraInitialized) CustomPaint(size: Size.infinite, painter: ReticlePainter(focusPoint: reticleCenter)),
+          
+          // Layer 2: Overlay Garis Bidik (Reticle lama)
+          if (_isCameraInitialized) CustomPaint(painter: ReticlePainterOld()),
+
+          // Layer 3: Debug Status Panel (Tampilan lama prototype)
           if (_currentResult != null)
             Positioned(
-              bottom: 120,
+              bottom: 120, // Naikan sedikit untuk save button
               left: 20,
               right: 20,
-              child: ColorInfoPanel(result: _currentResult!, detectedObject: _detectedObject),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Color(_currentResult!.colorValue),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "AVERAGE POOLING (5x5)",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 10,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          "RGB: ${_currentResult!.r}, ${_currentResult!.g}, ${_currentResult!.b}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
+
+          // Tombol Save (Tetap dipertahankan agar bisa nyimpan)
           Positioned(
-            bottom: 48,
+            bottom: 30,
             left: 0,
             right: 0,
             child: Center(
@@ -407,24 +358,17 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                 onTap: _currentResult != null ? showSaveDialog : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 72,
-                  height: 72,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _currentResult != null ? Color(_currentResult!.colorValue) : Colors.white24,
                     border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_currentResult != null ? Color(_currentResult!.colorValue) : Colors.white).withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
                   ),
                   child: Icon(
                     Icons.save_alt_rounded,
                     color: _currentResult?.isLight == true ? Colors.black87 : Colors.white,
-                    size: 28,
+                    size: 24,
                   ),
                 ),
               ),
@@ -436,122 +380,25 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
   }
 }
 
-class ColorInfoPanel extends StatelessWidget {
-  final PcdResult result;
-  final String detectedObject;
-  
-  const ColorInfoPanel({
-    super.key, 
-    required this.result, 
-    required this.detectedObject,
-  });
+class ReticlePainterOld extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    const rectSize = 100.0;
+
+    canvas.drawRect(
+      Rect.fromCenter(center: center, width: rectSize, height: rectSize),
+      paint,
+    );
+
+    canvas.drawCircle(center, 3.0, Paint()..color = Colors.white);
+  }
 
   @override
-  Widget build(BuildContext context) {
-    // Determine the color name using the new utility
-    final String colorName = ColorUtils.getNearestColorName(result.r, result.g, result.b);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E).withOpacity(0.85),
-        border: Border(top: BorderSide(color: Colors.white24, width: 1)), // Subtle top border
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Square Color Swatch
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Color(result.colorValue),
-              border: Border.all(color: Colors.white24, width: 1),
-            ),
-          ),
-          const SizedBox(width: 16),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        colorName,
-                        style: GoogleFonts.spaceMono(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white38),
-                      ),
-                      child: Text(
-                        '98%\nMatch',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.spaceMono(color: Colors.white70, fontSize: 10),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '[OBJ: $detectedObject]',
-                  style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'HEX:\n${result.hex}',
-                      style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(width: 1, height: 20, color: Colors.white24),
-                    const SizedBox(width: 12),
-                    Text(
-                      'RGB: ${result.r}, ${result.g},\n${result.b}',
-                      style: GoogleFonts.spaceMono(color: Colors.white54, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-Future<Map<String, dynamic>> _executeHeavyTasksInBackground(Map<String, dynamic> params) async {
-  final CameraImage image = params['image'] as CameraImage;
-  final bool runAi = params['runAi'] as bool;
-
-  // 1. Jalankan proses PCD (Ekstraksi Warna)
-  final pcdService = PcdService();
-  final pcdResult = await pcdService.extractColorFromFrame(image);
-
-  String? aiLabel;
-  // 2. Jalankan proses AI hanya jika flag runAi bernilai true
-  if (runAi) {
-    final aiService = AiService();
-    // Pastikan initModel atau pemuatan interpreter TFLite aman dijalankan di Isolate ini
-    await aiService.initModel(); 
-    aiLabel = await aiService.runObjectDetection(image);
-  }
-
-  return {
-    'pcdResult': pcdResult,
-    'aiLabel': aiLabel,
-  };
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
