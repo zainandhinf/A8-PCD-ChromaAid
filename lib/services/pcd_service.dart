@@ -24,6 +24,8 @@ class PcdResult {
   String toString() => 'PcdResult(R:$r G:$g B:$b $hex)';
 }
 
+DateTime _lastPcdLog = DateTime.fromMillisecondsSinceEpoch(0);
+
 /// Top-level function untuk di-spawn ke Isolate via compute().
 /// Harus berada di luar class agar bisa dipakai oleh compute().
 ///
@@ -110,6 +112,11 @@ PcdResult processCameraFrameFull(CameraImage image) {
       '#${finalR.toRadixString(16).padLeft(2, '0').toUpperCase()}'
       '${finalG.toRadixString(16).padLeft(2, '0').toUpperCase()}'
       '${finalB.toRadixString(16).padLeft(2, '0').toUpperCase()}';
+
+  if (DateTime.now().difference(_lastPcdLog).inMilliseconds > 500) {
+    _lastPcdLog = DateTime.now();
+    print('PCD [${DateTime.now().toIso8601String()}] center RGB=($finalR,$finalG,$finalB)');
+  }
 
   return PcdResult(r: finalR, g: finalG, b: finalB, hex: hex);
 }

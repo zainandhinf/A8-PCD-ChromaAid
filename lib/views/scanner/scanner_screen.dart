@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart';
 
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
+import '../../services/coordinate_service.dart';
 import '../../services/scan_storage_service.dart';
 import '../../models/color_scan_model.dart';
 import '../dashboard/dashboard_screen.dart';
+import 'reticle_painter.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -19,7 +21,8 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
-  DateTime _lastPcdProcessedTime = DateTime.now(); 
+  DateTime _lastPcdProcessedTime = DateTime.now();
+  Size? _previewSize;
 
   final PcdService _pcdService = PcdService();
   final AiService _aiService = AiService();
@@ -40,6 +43,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
   }
 
     Future<void> _setupSystem() async {
+      if (_cameraController?.value.isInitialized ?? false) return;
       await _aiService.initModel();
       try {
         final cameras = await availableCameras();
@@ -54,7 +58,10 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
         await _cameraController!.initialize();
         if (!mounted) return;
 
-        setState(() => _isCameraInitialized = true);
+        setState(() {
+          _isCameraInitialized = true;
+          _previewSize = _cameraController!.value.previewSize;
+        });
 
         _cameraController!.startImageStream((CameraImage image) async {
           if (_isProcessing) return;
@@ -334,8 +341,23 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     );
   }
 
+  Offset _getReticleCenter(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    if (_cameraController == null || _previewSize == null) {
+      return screenSize.center(Offset.zero);
+    }
+
+    return CoordinateService.mapSensorToScreen(
+      sensorPoint: Offset(_previewSize!.width / 2, _previewSize!.height / 2),
+      sensorSize: Size(_previewSize!.width, _previewSize!.height),
+      widgetSize: screenSize,
+      isFrontCamera: _cameraController!.description.lensDirection == CameraLensDirection.front,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final reticleCenter = _getReticleCenter(context);
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -357,7 +379,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
         fit: StackFit.expand,
         children: [
           if (_isCameraInitialized) CameraPreview(_cameraController!) else const Center(child: CircularProgressIndicator(color: Colors.white)),
-          if (_isCameraInitialized) CustomPaint(painter: ReticlePainter()),
+          if (_isCameraInitialized) CustomPaint(size: Size.infinite, painter: ReticlePainter(center: reticleCenter)),
           if (_currentResult != null)
             Positioned(
               bottom: 120,
@@ -470,40 +492,6 @@ class ColorInfoPanel extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Reticle Painter (Dipisah menjadi kelas CustomPainter mandiri) ──
-class ReticlePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke;
-    final center = Offset(size.width / 2, size.height / 2);
-    const rectSize = 100.0;
-
-    canvas.drawRect(Rect.fromCenter(center: center, width: rectSize, height: rectSize), paint);
-    canvas.drawCircle(center, 3.0, Paint()..color = Colors.white);
-
-    const cornerLen = 16.0;
-    final corners = [
-      [center - const Offset(rectSize / 2, rectSize / 2), true, true],
-      [center - const Offset(-rectSize / 2, rectSize / 2), false, true],
-      [center - const Offset(rectSize / 2, -rectSize / 2), true, false],
-      [center - const Offset(-rectSize / 2, -rectSize / 2), false, false],
-    ];
-
-    final accentPaint = Paint()..color = Colors.white..strokeWidth = 3..style = PaintingStyle.stroke;
-
-    for (final c in corners) {
-      final Offset pos = c[0] as Offset;
-      final bool goRight = c[1] as bool;
-      final bool goDown = c[2] as bool;
-      canvas.drawLine(pos, pos + Offset(goRight ? cornerLen : -cornerLen, 0), accentPaint);
-      canvas.drawLine(pos, pos + Offset(0, goDown ? cornerLen : -cornerLen), accentPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 Future<Map<String, dynamic>> _executeHeavyTasksInBackground(Map<String, dynamic> params) async {
