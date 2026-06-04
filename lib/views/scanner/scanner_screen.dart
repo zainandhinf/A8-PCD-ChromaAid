@@ -65,10 +65,15 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
 
         _cameraController!.startImageStream((CameraImage image) async {
           if (_isProcessing) return;
+          
+          final kini = DateTime.now();
+          // Throttling: batasi pemrosesan PCD maksimal ~3 frame per detik
+          if (kini.difference(_lastPcdProcessedTime).inMilliseconds < 333) return;
+          
           _isProcessing = true;
+          _lastPcdProcessedTime = kini;
 
           try {
-            final kini = DateTime.now();
             // Cek apakah sudah waktunya menjalankan AI (misal setiap 1200ms)
             final bool shouldRunAi = kini.difference(_lastAiProcessedTime).inMilliseconds > 1200;
 
