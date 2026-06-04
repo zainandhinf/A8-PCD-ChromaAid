@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
+import 'reticle_painter.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -114,7 +115,7 @@ class _ScannerScreenState extends State<ScannerScreen>
             const Center(child: CircularProgressIndicator(color: Colors.white)),
 
           // Layer 2: Overlay Garis Bidik (Reticle)
-          if (_isCameraInitialized) CustomPaint(painter: ReticlePainter()),
+          if (_isCameraInitialized) Positioned.fill(child: CustomPaint(painter: AdvancedReticlePainter())),
 
           // Layer 3: Debug Status Panel (Membuktikan PCD Bekerja)
           if (_currentColor != null)
@@ -177,30 +178,4 @@ class _ScannerScreenState extends State<ScannerScreen>
       ),
     );
   }
-}
-
-// Widget untuk menggambar garis bidik di tengah layar
-class ReticlePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    const rectSize = 100.0;
-
-    // Gambar kotak target
-    canvas.drawRect(
-      Rect.fromCenter(center: center, width: rectSize, height: rectSize),
-      paint,
-    );
-
-    // Gambar titik Crosshair kecil di tengah
-    canvas.drawCircle(center, 3.0, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
