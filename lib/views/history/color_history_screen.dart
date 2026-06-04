@@ -4,6 +4,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/hive_color_model.dart';
 import '../scanner/scanner_screen.dart';
 import 'scan_detail_screen.dart';
+import '../settings/settings_screen.dart';
+import '../../services/ai_service.dart';
 
 class ColorHistoryScreen extends StatefulWidget {
   const ColorHistoryScreen({super.key});
@@ -24,6 +26,17 @@ class _ColorHistoryScreenState extends State<ColorHistoryScreen> {
         title: const Text('My Palette', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1E1E1E),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(aiService: AiService()),
+                ),
+              );
+            },
+          ),
           // Indicator for Sync will be added here in Sprint 4
           IconButton(
             icon: const Icon(Icons.sync, color: Colors.white),

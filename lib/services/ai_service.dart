@@ -2,8 +2,17 @@ import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class AiService {
+  static final AiService _instance = AiService._internal();
+  factory AiService() => _instance;
+  AiService._internal();
+
   Interpreter? _interpreter;
   bool _isModelLoaded = false;
+  double _threshold = 0.45;
+
+  void updateThreshold(double newThreshold) {
+    _threshold = newThreshold;
+  }
 
   bool get isModelLoaded => _isModelLoaded;
 
@@ -64,7 +73,7 @@ class AiService {
         }
       }
 
-      if (detectedClassId != -1 && maxScore > 0.45) {
+      if (detectedClassId != -1 && maxScore > _threshold) {
         return _clothingLabels[detectedClassId].toUpperCase();
       }
       return "Pakaian / Kulit";
