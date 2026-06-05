@@ -1,8 +1,10 @@
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../services/pcd_service.dart';
 import '../../services/ai_service.dart';
 import 'reticle_painter.dart';
+import '../detail/color_detail_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -20,8 +22,8 @@ class _ScannerScreenState extends State<ScannerScreen>
   final PcdService _pcdService = PcdService();
   final AiService _aiService = AiService();
 
-  // Mekanisme "Kunci" agar Isolate tidak bertumpuk/crash
   bool _isProcessing = false;
+  String _currentSession = 'Tanpa Sesi';
 
   // Wadah untuk menyimpan hasil ekstraksi warna
   Map<String, dynamic>? _currentColor;
@@ -30,7 +32,89 @@ class _ScannerScreenState extends State<ScannerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showSessionDialog();
+    });
     _setupSystem();
+  }
+
+  Future<void> _showSessionDialog() async {
+    String sesiName = 'Tanpa Sesi';
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Colors.white10),
+        ),
+        title: const Text(
+          'Mulai Sesi Baru',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Beri nama objek atau ruangan yang sedang Anda scan.',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Contoh: Pakaian Kerja, Ruang Tamu...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.black45,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+              onChanged: (v) => sesiName = v,
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.all(16),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context, sesiName.trim().isEmpty ? 'Tanpa Sesi' : sesiName);
+              },
+              child: const Text(
+                'Mulai Scanning',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _currentSession = result;
+      });
+    }
   }
 
   // Fungsi gabungan untuk menyalakan AI dan Kamera
@@ -123,7 +207,30 @@ class _ScannerScreenState extends State<ScannerScreen>
               bottom: 40,
               left: 20,
               right: 20,
-              child: Container(
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  final r = _currentColor!['r'] as int;
+                  final g = _currentColor!['g'] as int;
+                  final b = _currentColor!['b'] as int;
+                  final hex = '${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}';
+                  Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      pageBuilder: (_, anim, __) => ColorDetailScreen(
+                        r: r,
+                        g: g,
+                        b: b,
+                        hexCode: hex,
+                        sesiId: _currentSession,
+                        savedAt: DateTime.now().toString().substring(0, 16),
+                      ),
+                      transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                      transitionDuration: const Duration(milliseconds: 300),
+                    ),
+                  );
+                },
+                child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.black87,
@@ -174,6 +281,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
