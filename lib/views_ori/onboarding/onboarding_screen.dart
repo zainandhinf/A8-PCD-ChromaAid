@@ -1,26 +1,12 @@
 import 'package:flutter/material.dart';
-// import '../scanner/scanner_screen.dart';
-import '../dashboard/dashboard_screen.dart';
+import '../scanner/scanner_screen.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 
-  Widget _swatch(int colorHex) {
-    return Container(
-      width: 40,
-      height: 40,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Color(colorHex),
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -29,35 +15,33 @@ class OnboardingScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Spacer(),
-
+              // Simulasi grafis dari figma (Bisa diganti dengan aset gambar asli nanti)
               const Icon(
                 Icons.color_lens_outlined,
                 size: 100,
                 color: Colors.white,
               ),
-              const SizedBox(height: 52),
-              
-              // Judul besar
+              const SizedBox(height: 40),
+
               const Text(
                 "See Colors\nDifferently",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 40,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
                   height: 1.1,
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // Subtitle
+
               const Text(
                 "Real-time color detection for\naccessibility and professional\nworkflows.",
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
+                style: TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
               ),
               const Spacer(),
+
+              // Tombol Start Scanning
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -70,10 +54,11 @@ class OnboardingScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
+                    // Navigasi ke Scanner
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const DashboardScreen(),
+                        builder: (context) => const ScannerScreen(),
                       ),
                     );
                   },
@@ -84,6 +69,8 @@ class OnboardingScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+
+              // Tombol Learn More
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -100,6 +87,17 @@ class OnboardingScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
+
+              const Text(
+                "REAL-TIME DETECTION\nHEX & RGB • EDGE AI",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white38,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
