@@ -11,20 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:chroma_aid/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('ChromaAid App Smoke Test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    // MyApp() diganti menjadi ChromaAidApp() menyesuaikan main.dart
+    await tester.pumpWidget(const ChromaAidApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Memastikan aplikasi berhasil di-render (MaterialApp terpanggil)
+    // Karena aplikasi sudah masuk ke OnboardingScreen, kita tidak lagi
+    // mengecek angka '0' atau ikon 'Icons.add'.
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

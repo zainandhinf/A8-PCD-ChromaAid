@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'views/onboarding/onboarding_screen.dart';
 
+// Tambahan import untuk fitur kamus warna
+import 'services/color_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -13,6 +16,9 @@ Future<void> main() async {
   // Inisialisasi Hive untuk Modul Color Management
   await Hive.initFlutter();
   await Hive.openBox('color_history');
+
+  // Memuat kamus warna sebelum aplikasi berjalan
+  await ColorService.loadColorDictionary();
 
   runApp(const ChromaAidApp());
 }
@@ -102,7 +108,9 @@ class _MyHomePageState extends State<MyHomePage> {
           // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
           // action in the IDE, or press "p" in the console), to see the
           // wireframe for each widget.
-          mainAxisAlignment: .center,
+          
+          // PERBAIKAN: .center diubah menjadi MainAxisAlignment.center
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('You have pushed the button this many times:'),
             Text(
