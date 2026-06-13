@@ -1,57 +1,8 @@
+import 'dart:isolate';
 import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
-
-// Top-level function for preprocessing
-Float32List preprocessImage(Map<String, dynamic> args) {
-  final Uint8List planeY = args['planeY'];
-  final int width = args['width'];
-  final int height = args['height'];
-  final int bytesPerRow = args['bytesPerRow'];
-
-  final int scaleX = width ~/ 640;
-  final int scaleY = height ~/ 640;
-
-  final Float32List input = Float32List(1 * 640 * 640 * 3);
-  int idx = 0;
-
-  for (int y = 0; y < 640; y++) {
-    int srcY = (y * scaleY).clamp(0, height - 1);
-    int rowOffset = srcY * bytesPerRow;
-    for (int x = 0; x < 640; x++) {
-      int srcX = (x * scaleX).clamp(0, width - 1);
-      double val = planeY[rowOffset + srcX] / 255.0;
-      input[idx++] = val;
-      input[idx++] = val;
-      input[idx++] = val;
-    }
-  }
-  return input;
-}
-
-// Top-level function for postprocessing
-int postprocessOutput(Float32List outputBuffer) {
-  double maxScore = 0.0;
-  int detectedClassId = -1;
-  // outputBuffer is [1, 84, 8400] flat
-  // 84 = 4 bounding box + 80 class scores
-  // So for classId 0..79, the index is (4 + classId) * 8400 + i
-  
-  for (int i = 0; i < 8400; i++) {
-    for (int classId = 0; classId < 80; classId++) {
-      double score = outputBuffer[(4 + classId) * 8400 + i];
-      if (score > maxScore) {
-        maxScore = score;
-        detectedClassId = classId;
-      }
-    }
-  }
-  
-  // Pack result: upper 16 bits = classId, lower 16 bits = score * 10000
-  // Or just return a Map. compute supports Map.
-  return (detectedClassId << 16) | (maxScore * 10000).toInt();
-}
 
 class AiService {
   static final AiService _instance = AiService._internal();
@@ -95,31 +46,56 @@ class AiService {
     if (!_isModelLoaded || _interpreter == null) return "AI Offline";
 
     try {
-      // 1. Preprocess in Isolate (convert CameraImage to flat Float32List)
-      final inputBuffer = await compute(preprocessImage, {
-        'planeY': image.planes[0].bytes,
-        'width': image.width,
-        'height': image.height,
-        'bytesPerRow': image.planes[0].bytesPerRow,
+      // Ekstrak data sebelum dikirim ke Isolate
+      final Uint8List planeYBytes = image.planes[0].bytes;
+      final int width = image.width;
+      final int height = image.height;
+      final int bytesPerRow = image.planes[0].bytesPerRow;
+      final int address = _interpreter!.address;
+
+      // Jalankan SEMUA tahapan AI di Isolate (Preprocess, Inference, Postprocess)
+      final int packedResult = await Isolate.run(() {
+        // 1. Preprocess
+        final int scaleX = width ~/ 640;
+        final int scaleY = height ~/ 640;
+        final Float32List inputBuffer = Float32List(1 * 640 * 640 * 3);
+        int idx = 0;
+
+        for (int y = 0; y < 640; y++) {
+          int srcY = (y * scaleY).clamp(0, height - 1);
+          int rowOffset = srcY * bytesPerRow;
+          for (int x = 0; x < 640; x++) {
+            int srcX = (x * scaleX).clamp(0, width - 1);
+            double val = planeYBytes[rowOffset + srcX] / 255.0;
+            inputBuffer[idx++] = val;
+            inputBuffer[idx++] = val;
+            inputBuffer[idx++] = val;
+          }
+        }
+
+        // 2. Inference
+        var isolateInterpreter = Interpreter.fromAddress(address);
+        var inputReshaped = inputBuffer.reshape([1, 640, 640, 3]);
+        var outBuf = Float32List(1 * 84 * 8400);
+        var outputReshaped = outBuf.reshape([1, 84, 8400]);
+        
+        isolateInterpreter.run(inputReshaped, outputReshaped);
+
+        // 3. Postprocess
+        double maxScore = 0.0;
+        int detectedClassId = -1;
+        for (int i = 0; i < 8400; i++) {
+          for (int classId = 0; classId < 80; classId++) {
+            double score = outBuf[(4 + classId) * 8400 + i];
+            if (score > maxScore) {
+              maxScore = score;
+              detectedClassId = classId;
+            }
+          }
+        }
+        return (detectedClassId << 16) | (maxScore * 10000).toInt();
       });
 
-      // 2. Inference on Main Thread (Fast because tensor is flat Float32List)
-      // Input shape is [1, 640, 640, 3] -> flat 1228800
-      var inputTensor = inputBuffer.buffer.asUint8List(); 
-      // Output shape is [1, 84, 8400] -> flat 705600
-      final Float32List outputBuffer = Float32List(1 * 84 * 8400);
-
-      // tflite_flutter expects the reshaped list or raw buffer.
-      // But we can just use run() if we pass the raw tensor?
-      // Actually, passing flat list directly works if reshaped.
-      var inputReshaped = inputBuffer.reshape([1, 640, 640, 3]);
-      var outputReshaped = outputBuffer.reshape([1, 84, 8400]);
-      
-      _interpreter!.run(inputReshaped, outputReshaped);
-
-      // 3. Postprocess in Isolate
-      final packedResult = await compute(postprocessOutput, outputBuffer);
-      
       int classId = packedResult >> 16;
       double maxScore = (packedResult & 0xFFFF) / 10000.0;
 

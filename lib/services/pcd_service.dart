@@ -45,32 +45,6 @@ PcdResult processCameraFrameFull(CameraImage image) {
   const double contrastFactor = 1.2;
   const int brightnessOffset = 10;
 
-  // ── Kumpulkan semua piksel mentah untuk White Balance ────────────────────
-  // Kita ambil sample dari area yang lebih luas (center 20% gambar)
-  // untuk menghitung rata-rata global yang lebih stabil.
-  int wbSampleArea = 40; // radius sampling white balance
-  double wbSumR = 0, wbSumG = 0, wbSumB = 0;
-  int wbCount = 0;
-
-  for (int y = centerY - wbSampleArea; y <= centerY + wbSampleArea; y += 2) {
-    for (int x = centerX - wbSampleArea; x <= centerX + wbSampleArea; x += 2) {
-      if (x < 0 || x >= width || y < 0 || y >= height) continue;
-      final rawRgb = _yuvToRgb(image, x, y);
-      wbSumR += rawRgb[0];
-      wbSumG += rawRgb[1];
-      wbSumB += rawRgb[2];
-      wbCount++;
-    }
-  }
-
-  // Scale factor White Balance (Gray World): targetkan avg = 128
-  final double wbScaleR = wbCount > 0 && wbSumR > 0
-      ? 128.0 / (wbSumR / wbCount) : 1.0;
-  final double wbScaleG = wbCount > 0 && wbSumG > 0
-      ? 128.0 / (wbSumG / wbCount) : 1.0;
-  final double wbScaleB = wbCount > 0 && wbSumB > 0
-      ? 128.0 / (wbSumB / wbCount) : 1.0;
-
   // ── Average Pooling 5×5 di area tengah ───────────────────────────────────
   int totalR = 0, totalG = 0, totalB = 0;
   int count = 0;
@@ -89,11 +63,6 @@ PcdResult processCameraFrameFull(CameraImage image) {
       R = ((contrastFactor * (R - 128)) + 128 + brightnessOffset).round().clamp(0, 255);
       G = ((contrastFactor * (G - 128)) + 128 + brightnessOffset).round().clamp(0, 255);
       B = ((contrastFactor * (B - 128)) + 128 + brightnessOffset).round().clamp(0, 255);
-
-      // Step 3: White Balance correction
-      R = (R * wbScaleR).round().clamp(0, 255);
-      G = (G * wbScaleG).round().clamp(0, 255);
-      B = (B * wbScaleB).round().clamp(0, 255);
 
       totalR += R;
       totalG += G;

@@ -26,6 +26,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   final AiService _aiService = AiService();
 
   bool _isProcessing = false;
+  bool _isAiProcessing = false;
   Map<String, dynamic>? _currentColor;
 
   // Overlay mode: 'hex', 'rgb', 'cmyk'
@@ -71,41 +72,50 @@ class _ScannerScreenState extends State<ScannerScreen>
         if (!mounted) return;
         setState(() => _isCameraInitialized = true);
 
-        _cameraController!.startImageStream((CameraImage image) async {
-          if (_isProcessing || _isFrozen) return;
+        _cameraController!.startImageStream((CameraImage image) {
+          if (_isFrozen) return;
           
           final now = DateTime.now();
-          if (now.difference(_lastPcdProcessedTime).inMilliseconds < 333) return;
           
-          _isProcessing = true;
-          _lastPcdProcessedTime = now;
-          
-          final rgbResult = await _pcdService.extractColorFromFrame(image);
-          
-          String? label;
-          if (now.difference(_lastAiProcessedTime).inMilliseconds > 1200) {
-            label = await _aiService.runObjectDetection(image);
+          // Jalankan AI secara terpisah (tidak memblokir stream PCD)
+          if (!_isAiProcessing && now.difference(_lastAiProcessedTime).inMilliseconds > 1200) {
+            _isAiProcessing = true;
             _lastAiProcessedTime = now;
+            _aiService.runObjectDetection(image).then((label) {
+              if (mounted) {
+                setState(() {
+                  _detectedObject = label;
+                });
+              }
+              _isAiProcessing = false;
+            }).catchError((e) {
+              _isAiProcessing = false;
+            });
           }
 
-          if (mounted) {
-            setState(() {
-              _prevColor = _currentColor;
-              // Ensure we convert PcdResult to Map if needed, wait PcdService returns Map or PcdResult?
-              // The new scanner screen expects _currentColor to be Map<String, dynamic>?
-              // but PcdService.extractColorFromFrame returns PcdResult!
-              // I will map it properly.
-              _currentColor = {
-                'r': rgbResult.r,
-                'g': rgbResult.g,
-                'b': rgbResult.b,
-                'hex': rgbResult.hex
-              };
-              if (label != null) _detectedObject = label;
+          // Jalankan PCD secepat mungkin (real-time)
+          if (!_isProcessing) {
+            _isProcessing = true;
+            _lastPcdProcessedTime = now;
+            
+            _pcdService.extractColorFromFrame(image).then((rgbResult) {
+              if (mounted) {
+                setState(() {
+                  _prevColor = _currentColor;
+                  _currentColor = {
+                    'r': rgbResult.r,
+                    'g': rgbResult.g,
+                    'b': rgbResult.b,
+                    'hex': rgbResult.hex
+                  };
+                });
+                _fadeController.forward(from: 0);
+              }
+              _isProcessing = false;
+            }).catchError((e) {
+              _isProcessing = false;
             });
-            _fadeController.forward(from: 0);
           }
-          _isProcessing = false;
         });
       }
     } catch (e) {
